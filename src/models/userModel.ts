@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcrypt';
 
 export interface IUser {
 	username: string;
@@ -11,6 +12,7 @@ const userSchema = new mongoose.Schema<IUser>({
 	username: {
 		type: String,
 		required: true,
+		unique: true,
 	},
 	email: {
 		type: String,
@@ -24,6 +26,16 @@ const userSchema = new mongoose.Schema<IUser>({
 		type: Date,
 		default: Date.now,
 	},
+});
+
+const saltRounds = 12;
+
+userSchema.pre('save', async function (next) {
+	const user = this;
+	if (user.isModified('password')) {
+		user.password = await bcrypt.hash(user.password, saltRounds);
+	}
+	next();
 });
 
 export const User = mongoose.model<IUser>('User', userSchema);
