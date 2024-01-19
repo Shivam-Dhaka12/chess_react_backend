@@ -45,6 +45,7 @@ export const registerOne = async (req: Request, res: Response) => {
 			username: req.body.username,
 			password: req.body.password,
 		});
+		console.log(user);
 		const newUser = await user.save();
 		res.status(200).send(newUser);
 	} catch (error) {
