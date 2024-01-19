@@ -3,16 +3,17 @@ import { getErrorMessage } from './src/utils/errors.util';
 import userRouter from './src/routes/userRoutes';
 import protectedRouter from './src/routes/someProtectedRoutes';
 
-import dotenv from 'dotenv';
 import express from 'express';
-import mongoose from 'mongoose';
+import { connectToDB } from './src/database/db';
+import serverConfig from './src/config/serverConfig';
+
+const {PORT} = serverConfig
 
 const cors = require('cors');
 
-dotenv.config();
-
+const serverStart = async()=>{
+await connectToDB();
 const app: Express = express();
-const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
@@ -24,16 +25,13 @@ app.get('/', (req: Request, res: Response) => {
 app.use('/user', userRouter);
 app.use('/protected', protectedRouter);
 
-mongoose
-	.connect(process.env.MONGO_URL as string)
-	.then(() => {
-		console.log('[database]: Connected to MongoDB');
-		app.listen(port, () => {
-			console.log(
-				`[server]: Server is running at http://localhost:${port}`
+	app.listen(PORT, async() => {
+		console.log(
+				`[server]: Server is running at http://localhost:${PORT}`
 			);
 		});
-	})
-	.catch((error: unknown) => {
-		console.log(getErrorMessage(error));
-	});
+	
+}
+
+
+serverStart();
