@@ -3,52 +3,98 @@ import { getErrorMessage } from '../utils/errors.util';
 import { IUser, User } from '../models/userModel';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import serverConfig from '../config/serverConfig';
 // import * as userServices from '../services/user.service';
 // import { CustomRequest } from '../middleware/auth';
+const {JWT_SECRET} = serverConfig
 
 export const loginOne = async (req: Request, res: Response) => {
-	try {
-		console.log(req.body);
-		const foundUser = await User.findOne({
-			username: req.body.username,
-		});
-		if (foundUser) {
-			const isMatch = bcrypt.compareSync(
-				req.body.password,
-				foundUser.password
-			);
+  try {
+    const { username, password } = req.body;
 
-			if (isMatch) {
-				const token = jwt.sign(
-					{ _id: foundUser?._id, username: foundUser?.username },
-					process.env.JWT_SECRET as string,
-					{
-						expiresIn: '1d',
-					}
-				);
-				return res.status(200).json({
-					status: 200,
-					message: 'Logged in successfully as: ' + foundUser.username,
-					token,
-				});
-			}
-		}
-		return res.status(403).send('Invalid Username or Password');
-	} catch (error) {
-		return res.status(500).send(getErrorMessage(error));
-	}
+    //CHECK IF DATA EXISTS
+    if (!username || !password) {
+      return res.status(404).json({
+        message: "Both username and password are required for login",
+        success: false,
+      });
+    }
+    const foundUser = await User.findOne({
+      username,
+    });
+    if (foundUser) {
+      const isMatch = bcrypt.compareSync(password, foundUser.password);
+
+      if (isMatch) {
+        const token = jwt.sign(
+          { _id: foundUser?._id, username: foundUser?.username },
+          JWT_SECRET as string,
+          {
+            expiresIn: "1d",
+          }
+        );
+        return res.status(200).json({
+          message: `Logged in successfully as: ${foundUser.username}`,
+          success: true,
+
+          token,
+        });
+      } else {
+        return res.status(403).json({
+          message: "Invalid Password",
+          success: false,
+        });
+      }
+    }
+    return res.status(403).json({
+      message: `No user with the username : ${username}`,
+      success: false,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: getErrorMessage(error),
+      success: false,
+    });
+  }
 };
 
 export const registerOne = async (req: Request, res: Response) => {
-	try {
-		const user = new User<IUser>({
-			username: req.body.username,
-			password: req.body.password,
-		});
-		console.log(user);
-		const newUser = await user.save();
-		res.status(200).send(newUser);
-	} catch (error) {
-		return res.status(500).send(getErrorMessage(error));
-	}
+  try {
+    const { username, password } = req.body;
+
+    //CHECK IF DATA EXISTS
+    if (!username || !password) {
+      return res.status(404).json({
+        message: "Both username and password are required for the registration",
+        success: false,
+      });
+    }
+
+    //CHECK IF USER ALREADY EXISTS
+    const userAlreadyRegistered = await User.findOne({ username });
+    if (userAlreadyRegistered) {
+      return res.status(404).json({
+        message: "username already taken",
+        success: false,
+      });
+    }
+
+    //REGISTER AND SAVE THE USER
+    const user = new User<IUser>({
+      username,
+      password,
+    });
+    console.log(user);
+    const newUser = await user.save();
+    return res.status(200).json({
+      message: "User registration successfully done!!",
+      success: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: getErrorMessage(error),
+      success: false,
+    });
+  }
 };
