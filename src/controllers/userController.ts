@@ -11,7 +11,8 @@ const {JWT_SECRET} = serverConfig
 export const loginOne = async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
-
+  console.log(username)
+  console.log(password)
     //CHECK IF DATA EXISTS
     if (!username || !password) {
       return res.status(404).json({
@@ -23,7 +24,10 @@ export const loginOne = async (req: Request, res: Response) => {
       username,
     });
     if (foundUser) {
-      const isMatch = bcrypt.compareSync(password, foundUser.password);
+      const decodedPassword = Buffer.from(password, 'base64')
+      console.log(decodedPassword);
+      console.log(foundUser);
+      const isMatch = bcrypt.compareSync(decodedPassword, foundUser.password);
 
       if (isMatch) {
         const token = jwt.sign(
@@ -33,10 +37,10 @@ export const loginOne = async (req: Request, res: Response) => {
             expiresIn: "1d",
           }
         );
+        console.log("logged")
         return res.status(200).json({
           message: `Logged in successfully as: ${foundUser.username}`,
           success: true,
-
           token,
         });
       } else {
