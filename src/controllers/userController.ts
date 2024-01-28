@@ -85,9 +85,11 @@ export const registerOne = async (req: Request, res: Response) => {
     }
 
     //REGISTER AND SAVE THE USER
+    const decodedPassword = Buffer.from(password, 'base64')
+      console.log(decodedPassword);
     const user = new User<IUser>({
       username,
-      password,
+      password:decodedPassword.toString(),
     });
     console.log(user);
     const newUser = await user.save();
