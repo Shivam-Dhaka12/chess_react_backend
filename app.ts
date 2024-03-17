@@ -1,6 +1,6 @@
 import { Express, Request, Response } from 'express';
-import userRouter from './src/routes/userRoutes';
-import protectedRouter from './src/routes/someProtectedRoutes';
+import authRouter from './src/routes/authRoutes';
+import protectedRouter from './src/routes/protectedRoutes';
 
 import express from 'express';
 import { connectToDB } from './src/database/db';
@@ -24,8 +24,8 @@ const setupExpressApp = (): Express => {
 		res.send('Express + TypeScript Server');
 	});
 
-	app.use('/user', userRouter);
-	app.use('/protected', protectedRouter);
+	app.use('/api/auth', authRouter);
+	app.use('/api/protected', protectedRouter);
 
 	return app;
 };
