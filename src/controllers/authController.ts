@@ -36,7 +36,7 @@ export const signin = async (req: Request, res: Response) => {
 				return res.status(200).json({
 					message: `Logged in successfully as: ${foundUser.username}`,
 					success: true,
-
+					username: foundUser.username,
 					token,
 				});
 			} else {
