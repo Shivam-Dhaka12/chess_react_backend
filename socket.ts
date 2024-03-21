@@ -1,7 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import http from 'http';
-import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 
 interface ActiveUsers {
 	[roomId: string]: {
@@ -38,9 +37,9 @@ const startSocketServer = (server: http.Server): Server => {
 					return next(new Error('Authentication error'));
 				}
 
-				console.log(decoded, decoded?.username);
+				console.log(decoded, decoded?.email);
 				// @ts-ignore
-				socket.decoded = decoded?.username || 'Anonymous';
+				socket.decoded = decoded?.email || 'Anonymous';
 			}
 		);
 		next();
@@ -53,11 +52,11 @@ const startSocketServer = (server: http.Server): Server => {
 	io.on('connection', (socket: Socket) => {
 		console.log('A user connected: ' + socket.id);
 		// @ts-ignore
-		const username = socket?.decoded?.username || 'Anonymous';
-		console.log('Username: ' + username);
+		const email = socket?.decoded?.email || 'Anonymous';
+		console.log('email: ' + email);
 
 		activeUsers[socket.id] = {
-			username: username || 'Anonymous',
+			username: 'Anonymous',
 			room: null,
 			disconnected: false,
 		};
@@ -95,7 +94,7 @@ const startSocketServer = (server: http.Server): Server => {
 			activeRooms[roomId].push(socket.id);
 			activeUsers[socket.id].room = roomId;
 
-			io.to(roomId).emit('player-connect', username); // Emit room information to all users in the room
+			io.to(roomId).emit('player-connect', email); // Emit room information to all users in the room
 		});
 
 		socket.on('disconnect', () => {

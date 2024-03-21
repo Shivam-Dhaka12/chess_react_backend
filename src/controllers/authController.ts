@@ -27,7 +27,7 @@ export const signin = async (req: Request, res: Response) => {
 
 			if (isMatch) {
 				const token = jwt.sign(
-					{ _id: foundUser?._id, username: foundUser?.username },
+					{ _id: foundUser?._id, email: foundUser?.email },
 					JWT_SECRET as string,
 					{
 						expiresIn: '1d',
