@@ -22,12 +22,14 @@ const startSocketServer = (server: http.Server): Server => {
 	const io = new Server(server, {
 		cors: {
 			origin: '*',
+			credentials: true,
 		},
 	});
 
 	// auth middleware
 	io.use((socket: Socket, next) => {
 		const token = socket.handshake.auth.token;
+		console.log('token: ', token);
 		jwt.verify(
 			token,
 			process.env.JWT_SECRET as string,
@@ -36,19 +38,22 @@ const startSocketServer = (server: http.Server): Server => {
 					return next(new Error('Authentication error'));
 				}
 
-				console.log(decoded, decoded.username);
+				console.log(decoded, decoded?.username);
 				// @ts-ignore
-				socket.decoded = decoded.username;
+				socket.decoded = decoded?.username || 'Anonymous';
 			}
 		);
 		next();
 	});
 
+	const handleError = (socket: Socket, error: Error) => {
+		socket.emit('error', { message: error.message });
+	};
 	//
 	io.on('connection', (socket: Socket) => {
 		console.log('A user connected: ' + socket.id);
 		// @ts-ignore
-		const username = socket?.decoded.username;
+		const username = socket?.decoded?.username || 'Anonymous';
 		console.log('Username: ' + username);
 
 		activeUsers[socket.id] = {
@@ -57,23 +62,33 @@ const startSocketServer = (server: http.Server): Server => {
 			disconnected: false,
 		};
 
-		socket.on('room-create', (roomId, next) => {
+		socket.on('room-create', (roomId) => {
+			console.log('inside room create');
 			socket.join(roomId);
+			console.log('Room created: ' + roomId);
 			// Add user to the room's user list and Update activeUser to include its room
 			if (activeRooms[roomId]) {
-				next(new Error('A room with this name already exists'));
+				handleError(
+					socket,
+					new Error('A room with this name already exists')
+				);
+				return;
 			}
 			activeRooms[roomId] = [socket.id];
 			activeUsers[socket.id].room = roomId;
+
+			io.to(roomId).emit('room-created', roomId);
 		});
 
-		socket.on('room-join', (roomId, next) => {
+		socket.on('room-join', (roomId) => {
 			if (!activeRooms[roomId]) {
-				return next(new Error('Room does not exist'));
+				handleError(socket, new Error('Room does not exist'));
+				return;
 			}
 
 			if (activeRooms[roomId].length >= 2) {
-				return next(new Error('Room is full'));
+				handleError(socket, new Error('Room is full'));
+				return;
 			}
 
 			socket.join(roomId);
