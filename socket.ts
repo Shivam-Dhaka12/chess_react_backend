@@ -14,8 +14,13 @@ interface ActiveRooms {
 	[roomId: string]: string[];
 }
 
+interface activeConnections {
+	[userId: string]: Socket;
+}
+
 const activeUsers: ActiveUsers = {}; // Object to store active user state
 const activeRooms: ActiveRooms = {};
+export const activeConnections: activeConnections = {};
 
 const startSocketServer = (server: http.Server): Server => {
 	const io = new Server(server, {
@@ -28,7 +33,6 @@ const startSocketServer = (server: http.Server): Server => {
 	// auth middleware
 	io.use((socket: Socket, next) => {
 		const token = socket.handshake.auth.token;
-		console.log('token: ', token);
 		jwt.verify(
 			token,
 			process.env.JWT_SECRET as string,
@@ -37,9 +41,13 @@ const startSocketServer = (server: http.Server): Server => {
 					return next(new Error('Authentication error'));
 				}
 
-				console.log(decoded, decoded?.email);
+				console.log(
+					'decoded: ' + JSON.stringify(decoded),
+					'\n',
+					'username: ' + decoded?.username
+				);
 				// @ts-ignore
-				socket.decoded = decoded?.email || 'Anonymous';
+				socket.decoded = { ...decoded };
 			}
 		);
 		next();
@@ -51,9 +59,12 @@ const startSocketServer = (server: http.Server): Server => {
 	//
 	io.on('connection', (socket: Socket) => {
 		console.log('A user connected: ' + socket.id);
+
 		// @ts-ignore
-		const email = socket?.decoded?.email || 'Anonymous';
-		console.log('email: ' + email);
+		const { username, _id } = socket?.decoded || {};
+		activeConnections[_id] = socket;
+
+		console.log('username: ' + username);
 
 		activeUsers[socket.id] = {
 			username: 'Anonymous',
@@ -62,9 +73,6 @@ const startSocketServer = (server: http.Server): Server => {
 		};
 
 		socket.on('room-create', (roomId) => {
-			console.log('inside room create');
-			socket.join(roomId);
-			console.log('Room created: ' + roomId);
 			// Add user to the room's user list and Update activeUser to include its room
 			if (activeRooms[roomId]) {
 				handleError(
@@ -73,6 +81,10 @@ const startSocketServer = (server: http.Server): Server => {
 				);
 				return;
 			}
+
+			socket.join(roomId);
+			console.log('Room created: ' + roomId);
+
 			activeRooms[roomId] = [socket.id];
 			activeUsers[socket.id].room = roomId;
 
@@ -94,10 +106,14 @@ const startSocketServer = (server: http.Server): Server => {
 			activeRooms[roomId].push(socket.id);
 			activeUsers[socket.id].room = roomId;
 
-			io.to(roomId).emit('player-connect', email); // Emit room information to all users in the room
+			io.to(roomId).emit(
+				'room-joined',
+				`${username} joined the room ${roomId}`
+			); // Emit room information to all users in the room
 		});
 
 		socket.on('disconnect', () => {
+			console.log('User Disconnected: ' + socket.id);
 			const user = activeUsers[socket.id];
 			if (user && user.room) {
 				user.disconnected = true;
@@ -109,21 +125,23 @@ const startSocketServer = (server: http.Server): Server => {
 							activeRooms[user.room] = activeRooms[
 								user.room
 							].filter(
-								(username: string) => username !== user.username
+								(socketId: string) => socketId !== socket.id
 							);
 							socket.leave(user.room);
+							console.log('User left room: ' + user.room);
 							io.to(user.room).emit(
 								'player-disconnect',
-								user.username
+								`${user.username} disconnected`
 							);
 							if (activeRooms[user.room].length === 0) {
 								delete activeRooms[user.room]; // Delete the room if there are no users left
+								console.log('Room deleted: ' + user.room);
 							}
 						}
 
 						delete activeUsers[socket.id];
 					}
-				}, 30000); // 30 seconds timeout
+				}, 3000); // 30 seconds timeout
 			}
 		});
 

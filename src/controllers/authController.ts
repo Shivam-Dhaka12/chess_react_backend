@@ -4,6 +4,7 @@ import { IUser, User } from '../models/userModel';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import serverConfig from '../config/serverConfig';
+import { activeConnections } from '../../socket';
 // import * as userServices from '../services/user.service';
 // import { CustomRequest } from '../middleware/auth';
 const { JWT_SECRET } = serverConfig;
@@ -11,7 +12,6 @@ const { JWT_SECRET } = serverConfig;
 export const signin = async (req: Request, res: Response) => {
 	try {
 		const { username, password } = req.body;
-
 		//CHECK IF DATA EXISTS
 		if (!username || !password) {
 			return res.status(404).json({
@@ -26,8 +26,10 @@ export const signin = async (req: Request, res: Response) => {
 			const isMatch = bcrypt.compareSync(password, foundUser.password);
 
 			if (isMatch) {
+				console.log('===============================================');
+				console.log('Logged in successfully as:', foundUser.username);
 				const token = jwt.sign(
-					{ _id: foundUser?._id, email: foundUser?.email },
+					{ username: foundUser.username, _id: foundUser._id },
 					JWT_SECRET as string,
 					{
 						expiresIn: '1d',
@@ -86,7 +88,6 @@ export const signup = async (req: Request, res: Response) => {
 			username,
 			password,
 		});
-		console.log(user);
 		const newUser = await user.save();
 		return res.status(200).json({
 			message: 'User registration successfully done!!',
@@ -96,6 +97,29 @@ export const signup = async (req: Request, res: Response) => {
 		return res.status(500).json({
 			message: getErrorMessage(error),
 			success: false,
+		});
+	}
+};
+
+export const logout = async (req: Request, res: Response) => {
+	const userId = req.body.decoded._id;
+	// Find the Socket.io connection associated with the user's session
+	const socket = activeConnections[userId];
+	if (socket) {
+		socket.disconnect(true);
+		delete activeConnections[userId];
+		console.log(
+			`User ${userId} logged out and Socket.io connection closed`
+		);
+		res.status(200).json({
+			success: true,
+			message: 'User logged out successfully',
+		});
+	} else {
+		console.log(`User ${userId} not found or already disconnected`);
+		res.status(204).json({
+			success: false,
+			message: 'User not found or already disconnected',
 		});
 	}
 };

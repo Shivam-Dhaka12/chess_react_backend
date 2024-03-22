@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
-import { protectedController } from '../controllers/protectedController';
+import { logout } from '../controllers/authController';
 
 const protectedRouter: Router = express.Router();
 
-protectedRouter.get('/protected', protectedController);
+protectedRouter.post('/logout', logout);
 export default protectedRouter;

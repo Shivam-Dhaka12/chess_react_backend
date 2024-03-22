@@ -7,6 +7,7 @@ import serverConfig from './src/config/serverConfig';
 import startSocketServer from './socket';
 import express from 'express';
 import http from 'http';
+import { protectedController } from './src/middlewares/authMiddleware';
 
 const { PORT } = serverConfig;
 
@@ -19,12 +20,11 @@ const setupExpressApp = (): Express => {
 	app.use(express.json());
 
 	app.get('/', (req: Request, res: Response) => {
-		console.log(req.headers);
 		res.send('Express + TypeScript Server');
 	});
 
 	app.use('/api/auth', authRouter);
-	app.use('/api/protected', protectedRouter);
+	app.use('/api/protected', protectedController, protectedRouter);
 
 	return app;
 };
