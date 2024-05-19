@@ -54,7 +54,9 @@ const startSocketServer = (server: http.Server): Server => {
 	});
 
 	const handleError = (socket: Socket, error: Error) => {
-		socket.emit('error', { message: error.message });
+		console.log('inside error');
+		console.log(error.message);
+		io.to(socket.id).emit('error', { message: error.message });
 	};
 	//
 	io.on('connection', (socket: Socket) => {
@@ -67,7 +69,7 @@ const startSocketServer = (server: http.Server): Server => {
 		console.log('username: ' + username);
 
 		activeUsers[socket.id] = {
-			username: 'Anonymous',
+			username,
 			room: null,
 			disconnected: false,
 		};
@@ -93,6 +95,7 @@ const startSocketServer = (server: http.Server): Server => {
 
 		socket.on('room-join', (roomId) => {
 			if (!activeRooms[roomId]) {
+				console.log('recieved event room join');
 				handleError(socket, new Error('Room does not exist'));
 				return;
 			}
@@ -101,7 +104,6 @@ const startSocketServer = (server: http.Server): Server => {
 				handleError(socket, new Error('Room is full'));
 				return;
 			}
-
 			socket.join(roomId);
 			activeRooms[roomId].push(socket.id);
 			activeUsers[socket.id].room = roomId;
@@ -113,11 +115,14 @@ const startSocketServer = (server: http.Server): Server => {
 		});
 
 		socket.on('disconnect', () => {
-			console.log('User Disconnected: ' + socket.id);
+			console.log('User lost connection: ' + socket.id);
 			const user = activeUsers[socket.id];
 			if (user && user.room) {
 				user.disconnected = true;
-				io.to(user.room).emit('player-reconnecting', user.username);
+				io.to(user.room).emit(
+					'player-reconnecting',
+					`${user.username} reconnecting...`
+				);
 				// Set a timer to automatically remove the user if they don't reconnect within the specified timeframe
 				setTimeout(() => {
 					if (activeUsers[socket.id].disconnected) {
@@ -127,6 +132,7 @@ const startSocketServer = (server: http.Server): Server => {
 							].filter(
 								(socketId: string) => socketId !== socket.id
 							);
+
 							socket.leave(user.room);
 							console.log('User left room: ' + user.room);
 							io.to(user.room).emit(
@@ -141,19 +147,26 @@ const startSocketServer = (server: http.Server): Server => {
 
 						delete activeUsers[socket.id];
 					}
-				}, 3000); // 30 seconds timeout
+				}, 30000); // 30 seconds timeout
 			}
 		});
 
-		socket.on('reconnectAttempt', () => {
+		socket.on('reconnect-attempt', () => {
 			const user = activeUsers[socket.id];
 			if (user && user.disconnected) {
 				// Attempt to rejoin the game room
 				if (user.room) {
-					socket.join(user.room);
-					io.to(user.room).emit('player-reconnect', user.username);
+					io.to(user.room).emit(
+						'player-reconnect',
+						`${user.username} reconnected`
+					);
 					user.disconnected = false;
 				}
+			} else {
+				io.to(socket.id).emit(
+					'reconnect-gameover',
+					'Game is already over'
+				);
 			}
 		});
 	});

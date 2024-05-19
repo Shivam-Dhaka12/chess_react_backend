@@ -5,8 +5,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import serverConfig from '../config/serverConfig';
 import { activeConnections } from '../../socket';
-// import * as userServices from '../services/user.service';
-// import { CustomRequest } from '../middleware/auth';
+
 const { JWT_SECRET } = serverConfig;
 
 export const signin = async (req: Request, res: Response) => {
