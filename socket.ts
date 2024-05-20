@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import http from 'http';
 
 interface ActiveUsers {
-	[roomId: string]: {
+	[socketId: string]: {
 		username: string;
 		room: string | null;
 		disconnected: boolean;
@@ -61,7 +61,6 @@ const startSocketServer = (server: http.Server): Server => {
 	//
 	io.on('connection', (socket: Socket) => {
 		console.log('A user connected: ' + socket.id);
-
 		// @ts-ignore
 		const { username, _id } = socket?.decoded || {};
 		activeConnections[_id] = socket;
@@ -98,6 +97,29 @@ const startSocketServer = (server: http.Server): Server => {
 				console.log('recieved event room join');
 				handleError(socket, new Error('Room does not exist'));
 				return;
+			}
+
+			//check if user is already in the any room
+			if (activeUsers[socket.id].room) {
+				//if already in the room
+				if (activeUsers[socket.id].room === roomId) {
+					//do nothing
+					io.to(roomId).emit(
+						'room-joined',
+						`${username} reconnected`
+					);
+					return;
+				} else {
+					handleError(
+						socket,
+						new Error(
+							`Already in a room, wait 30s or first leave the room ${
+								activeUsers[socket.id].room
+							}`
+						)
+					);
+					return;
+				}
 			}
 
 			if (activeRooms[roomId].length >= 2) {
@@ -151,7 +173,7 @@ const startSocketServer = (server: http.Server): Server => {
 			}
 		});
 
-		socket.on('reconnect-attempt', () => {
+		socket.on('reconnect', () => {
 			const user = activeUsers[socket.id];
 			if (user && user.disconnected) {
 				// Attempt to rejoin the game room

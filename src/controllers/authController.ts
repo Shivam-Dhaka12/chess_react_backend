@@ -10,7 +10,7 @@ const { JWT_SECRET } = serverConfig;
 
 export const signin = async (req: Request, res: Response) => {
 	try {
-		const { username, password } = req.body;
+		let { username, password } = req.body;
 		//CHECK IF DATA EXISTS
 		if (!username || !password) {
 			return res.status(404).json({
@@ -18,6 +18,10 @@ export const signin = async (req: Request, res: Response) => {
 				success: false,
 			});
 		}
+
+		username = username.trim();
+		username = username.toLowerCase();
+
 		const foundUser = await User.findOne({
 			username,
 		});
@@ -73,6 +77,8 @@ export const signup = async (req: Request, res: Response) => {
 			});
 		}
 
+		username.trim();
+		username.toLowerCase();
 		//CHECK IF USER ALREADY EXISTS
 		const userAlreadyRegistered = await User.findOne({ username });
 		if (userAlreadyRegistered) {
