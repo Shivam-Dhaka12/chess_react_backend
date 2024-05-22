@@ -1,12 +1,14 @@
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import http from 'http';
+import { error } from 'console';
 
 interface ActiveUsers {
 	[userId: string]: {
 		username: string;
 		room: string | null;
 		disconnected: boolean;
+		isFirstConnection: boolean;
 	};
 }
 
@@ -42,17 +44,6 @@ const startSocketServer = (server: http.Server): Server => {
 				if (err) {
 					return next(new Error('Authentication error'));
 				}
-
-				console.log(
-					'===============',
-					'\n',
-					'JWT decoded \n================> \n',
-					'decoded: ' + JSON.stringify(decoded),
-					'\n',
-					'username: ' + decoded?.username,
-					'\n',
-					'==============='
-				);
 				// @ts-ignore
 				socket.decoded = { ...decoded };
 			}
@@ -66,34 +57,45 @@ const startSocketServer = (server: http.Server): Server => {
 	};
 	//
 	io.on('connection', (socket: Socket) => {
-		console.log('A user connected: ' + socket.id);
 		// @ts-ignore
 		const { username, _id } = socket?.decoded || {};
+		console.log('A user connected: ' + _id);
 
-		if (!activeUsers[_id]) {
-			console.log('username: ' + username);
+		if (activeUsers[_id]) {
+			if (timer) clearTimeout(timer);
+			activeUsers[_id].disconnected = false;
 
+			socket.on('is-reconnecting', (roomId: string) => {
+				//
+				if (activeUsers[_id] && activeUsers[_id].isFirstConnection) {
+					activeUsers[_id].isFirstConnection = false;
+					return;
+				}
+				if (activeUsers[_id] && activeUsers[_id].room !== roomId) {
+					console.log('Inside reconnect error');
+					socket.emit('reconnect-error', {
+						message: 'You are not in this room',
+					});
+					return;
+				}
+				if (activeUsers[_id] && activeUsers[_id].room === roomId) {
+					socket.join(roomId);
+					console.log('Inside reconnecting');
+					io.to(roomId).emit(
+						'player-reconnected',
+						`${username} reconnected`
+					);
+				}
+			});
+		} else {
 			activeUsers[_id] = {
 				username,
 				room: null,
 				disconnected: false,
+				isFirstConnection: true,
 			};
-		} else {
-			if (timer) clearTimeout(timer);
-			activeUsers[_id].disconnected = false;
-
-			if (activeUsers[_id]) {
-				const roomId = activeUsers[_id].room;
-				if (roomId) {
-					socket.join(roomId);
-					io.to(roomId).emit(
-						'room-joined',
-						`${username} reconnected`
-					);
-				}
-			}
 		}
-		//vREview this!!!!!!!!!!!!!
+
 		activeConnections[_id] = socket;
 
 		socket.on('room-create', (roomId) => {
@@ -116,17 +118,19 @@ const startSocketServer = (server: http.Server): Server => {
 		});
 
 		socket.on('room-join', (roomId) => {
+			console.log('Recieved event room-join');
 			if (!activeRooms[roomId]) {
-				console.log('recieved event room join');
 				handleError(socket, new Error('Room does not exist'));
 				return;
 			}
-			console.log('========================');
-			console.log('Already active?', activeUsers[_id]);
-			//check if user is already in the any room
-			if (activeUsers[_id].room) {
+
+			//check if user is already in any room
+			if (activeUsers[_id].room !== null) {
 				//if already in the room
 				if (activeUsers[_id].room === roomId) {
+					console.log(activeUsers[_id].room, roomId);
+					console.log(3);
+					socket.join(roomId);
 					io.to(roomId).emit(
 						'room-joined',
 						`${username} reconnected`
@@ -149,8 +153,7 @@ const startSocketServer = (server: http.Server): Server => {
 			socket.join(roomId);
 			activeRooms[roomId].push(_id);
 			activeUsers[_id].room = roomId;
-			console.log('After joinging room ' + roomId);
-			console.log(_id, activeUsers[_id]);
+			console.log(4);
 
 			io.to(roomId).emit(
 				'room-joined',
@@ -173,8 +176,9 @@ const startSocketServer = (server: http.Server): Server => {
 					`${user.username} reconnecting...`
 				);
 				// Set a timer to automatically remove the user if they don't reconnect within the specified timeframe
+
 				timer = setTimeout(() => {
-					if (activeUsers[_id].disconnected) {
+					if (activeUsers[_id] && activeUsers[_id].disconnected) {
 						if (user.room) {
 							activeRooms[user.room] = activeRooms[
 								user.room
@@ -182,6 +186,11 @@ const startSocketServer = (server: http.Server): Server => {
 
 							socket.leave(user.room);
 							console.log('User left room: ' + user.room);
+
+							activeConnections[_id].disconnect(true);
+							delete activeConnections[_id];
+
+							console.log('User disconnected: ' + _id);
 							io.to(user.room).emit(
 								'player-disconnect',
 								`${user.username} disconnected`
@@ -194,7 +203,7 @@ const startSocketServer = (server: http.Server): Server => {
 
 						delete activeUsers[_id];
 					}
-				}, 30000); // 30 seconds timeout
+				}, 10000); // 30 seconds timeout
 			}
 		});
 	});
