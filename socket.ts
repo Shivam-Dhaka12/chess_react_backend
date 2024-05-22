@@ -23,6 +23,8 @@ const activeRooms: ActiveRooms = {};
 export const activeConnections: activeConnections = {};
 
 const startSocketServer = (server: http.Server): Server => {
+	let timer: NodeJS.Timeout;
+
 	const io = new Server(server, {
 		cors: {
 			origin: '*',
@@ -76,6 +78,20 @@ const startSocketServer = (server: http.Server): Server => {
 				room: null,
 				disconnected: false,
 			};
+		} else {
+			if (timer) clearTimeout(timer);
+			activeUsers[_id].disconnected = false;
+
+			if (activeUsers[_id]) {
+				const roomId = activeUsers[_id].room;
+				if (roomId) {
+					socket.join(roomId);
+					io.to(roomId).emit(
+						'room-joined',
+						`${username} reconnected`
+					);
+				}
+			}
 		}
 		//vREview this!!!!!!!!!!!!!
 		activeConnections[_id] = socket;
@@ -105,19 +121,16 @@ const startSocketServer = (server: http.Server): Server => {
 				handleError(socket, new Error('Room does not exist'));
 				return;
 			}
-
 			console.log('========================');
 			console.log('Already active?', activeUsers[_id]);
 			//check if user is already in the any room
 			if (activeUsers[_id].room) {
 				//if already in the room
 				if (activeUsers[_id].room === roomId) {
-					//do nothing
 					io.to(roomId).emit(
 						'room-joined',
 						`${username} reconnected`
 					);
-					return;
 				} else {
 					handleError(
 						socket,
@@ -125,8 +138,8 @@ const startSocketServer = (server: http.Server): Server => {
 							`Already in a room, wait 30s or first leave the room ${activeUsers[_id].room}`
 						)
 					);
-					return;
 				}
+				return;
 			}
 
 			if (activeRooms[roomId].length >= 2) {
@@ -145,6 +158,11 @@ const startSocketServer = (server: http.Server): Server => {
 			); // Emit room information to all users in the room
 		});
 
+		socket.on('make-move', ({ move, roomId }) => {
+			console.log('Player move: ' + move);
+			io.to(roomId).emit('player-move', move);
+		});
+
 		socket.on('disconnect', () => {
 			console.log('User lost connection: ' + _id);
 			const user = activeUsers[_id];
@@ -155,7 +173,7 @@ const startSocketServer = (server: http.Server): Server => {
 					`${user.username} reconnecting...`
 				);
 				// Set a timer to automatically remove the user if they don't reconnect within the specified timeframe
-				setTimeout(() => {
+				timer = setTimeout(() => {
 					if (activeUsers[_id].disconnected) {
 						if (user.room) {
 							activeRooms[user.room] = activeRooms[
