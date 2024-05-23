@@ -112,6 +112,16 @@ const startSocketServer = (server: http.Server): Server => {
 				return;
 			}
 
+			if (activeUsers[_id].room) {
+				handleError(
+					socket,
+					new Error(
+						`Already in a room, wait 30s or first leave the room ${activeUsers[_id].room}`
+					)
+				);
+				return;
+			}
+
 			socket.join(roomId);
 			console.log('Room created: ' + roomId);
 
@@ -159,7 +169,6 @@ const startSocketServer = (server: http.Server): Server => {
 			activeRooms[roomId].push(_id);
 			activeUsers[_id].room = roomId;
 			activeUsers[_id].activeInRoom = true;
-			if (roomTimer) clearTimeout(roomTimer);
 
 			io.to(roomId).emit(
 				'room-joined',
