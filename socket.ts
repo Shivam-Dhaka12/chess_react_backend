@@ -203,6 +203,7 @@ const startSocketServer = (server: http.Server): Server => {
 						activeUsers[_id].room &&
 						!activeUsers[_id].activeInRoom
 					) {
+						console.log('inside roomTimer');
 						const roomId = activeUsers[_id].room;
 						if (roomId) {
 							activeRooms[roomId] = activeRooms[roomId].filter(
@@ -211,51 +212,47 @@ const startSocketServer = (server: http.Server): Server => {
 
 							socket.leave(roomId);
 							activeUsers[_id].room = null;
-							console.log('User left room: ' + roomId);
-
+							console.log(`User: ${_id} left room: ${user.room}`);
 							console.log('User disconnected: ' + _id);
+
 							io.to(roomId).emit(
 								'player-disconnect',
-								`${user.username} disconnected`
+								`You won by ${user.username}'s disconnection`
 							);
 
-							if (activeRooms[roomId].length === 0) {
-								delete activeRooms[roomId]; // Delete the room if there are no users left
-								console.log('Room deleted: ' + roomId + '1');
+							const oppositeUserId = activeRooms[roomId].find(
+								(userId: string) => userId != _id
+							);
+
+							if (oppositeUserId) {
+								const oppositeUserSocket =
+									activeConnections[oppositeUserId];
+								oppositeUserSocket.leave(roomId);
+								activeUsers[oppositeUserId].room = null;
+								console.log(
+									`User: ${oppositeUserId} left room: ${user.room}`
+								);
+								console.log(
+									`User disconnected: ${oppositeUserId}`
+								);
 							}
+
+							delete activeRooms[roomId];
+							console.log('Room deleted: ' + roomId + '1');
 						}
 					}
-				}, 20000);
+				}, 5000);
 
 				connectionTimer = setTimeout(() => {
 					if (activeUsers[_id] && activeUsers[_id].disconnected) {
-						if (user.room) {
-							activeRooms[user.room] = activeRooms[
-								user.room
-							].filter((userId: string) => userId !== _id);
-
-							socket.leave(user.room);
-							activeUsers[_id].room = null;
-							console.log('User left room: ' + user.room);
-
-							console.log('User disconnected: ' + _id);
-							io.to(user.room).emit(
-								'player-disconnect',
-								`${user.username} disconnected`
-							);
-							if (activeRooms[user.room].length === 0) {
-								delete activeRooms[user.room]; // Delete the room if there are no users left
-								console.log('Room deleted: ' + user.room + '2');
-							}
-						}
-
+						console.log('inside connectionTimer');
 						if (activeConnections[_id]) {
 							activeConnections[_id].disconnect(true);
 							delete activeConnections[_id];
 						}
 						delete activeUsers[_id];
 					}
-				}, 20000); // 20 seconds timeout
+				}, 6000); // 20 seconds timeout
 			}
 		});
 	});
