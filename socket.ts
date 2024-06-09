@@ -9,12 +9,22 @@ interface User {
 	isFirstConnection: boolean;
 	activeInRoom: boolean;
 }
+
+interface Player {
+	playerId: string;
+	playerName: string;
+	playerColor: string;
+}
 interface ActiveUsers {
 	[userId: string]: User;
 }
 
 interface ActiveRooms {
-	[roomId: string]: string[];
+	[roomId: string]: {
+		playerId: string;
+		playerName: string;
+		playerColor: string;
+	}[];
 }
 
 interface ActiveConnections {
@@ -53,9 +63,9 @@ const startSocketServer = (server: http.Server): Server => {
 		next();
 	});
 
-	const handleError = (socket: Socket, error: Error) => {
+	const handleError = (socket: Socket, error: Error, navigateURL: string) => {
 		console.log('Error: ' + error.message);
-		io.to(socket.id).emit('error', { message: error.message });
+		io.to(socket.id).emit('error', { message: error.message, navigateURL });
 	};
 	//
 	io.on('connection', (socket: Socket) => {
@@ -66,31 +76,6 @@ const startSocketServer = (server: http.Server): Server => {
 		if (activeUsers[_id]) {
 			if (connectionTimer) clearTimeout(connectionTimer);
 			activeUsers[_id].disconnected = false;
-
-			socket.on('is-reconnecting', (roomId: string) => {
-				//
-				if (activeUsers[_id] && activeUsers[_id].isFirstConnection) {
-					activeUsers[_id].isFirstConnection = false;
-					return;
-				}
-				if (activeUsers[_id] && activeUsers[_id].room !== roomId) {
-					console.log('User reconnect failed, not in room');
-					socket.emit('reconnect-error', {
-						message: 'You are not in this room',
-					});
-					return;
-				}
-				if (activeUsers[_id] && activeUsers[_id].room === roomId) {
-					socket.join(roomId);
-					if (roomTimer) clearTimeout(roomTimer);
-					activeUsers[_id].activeInRoom = true;
-					console.log('User reconnected: ' + _id);
-					io.to(roomId).emit(
-						'player-reconnected',
-						`${username} reconnected`
-					);
-				}
-			});
 		} else {
 			activeUsers[_id] = {
 				username,
@@ -108,7 +93,8 @@ const startSocketServer = (server: http.Server): Server => {
 			if (activeRooms[roomId]) {
 				handleError(
 					socket,
-					new Error('A room with this name already exists')
+					new Error('A room with this name already exists'),
+					'/user/room'
 				);
 				return;
 			}
@@ -118,24 +104,25 @@ const startSocketServer = (server: http.Server): Server => {
 					socket,
 					new Error(
 						`Already in a room, wait 30s or first leave the room ${activeUsers[_id].room}`
-					)
+					),
+					'/user/room'
 				);
 				return;
 			}
 
-			socket.join(roomId);
 			console.log('Room created: ' + roomId);
-
-			activeRooms[roomId] = [_id];
-			activeUsers[_id].room = roomId;
-
-			io.to(roomId).emit('room-created', roomId);
+			activeRooms[roomId] = [];
+			socket.emit('room-created', roomId);
 		});
 
-		socket.on('room-join', (roomId) => {
-			console.log('Recieved event room-join');
+		socket.on('room-join', (roomId: string) => {
+			console.log('Recieved event room-join, user: ' + _id);
 			if (!activeRooms[roomId]) {
-				handleError(socket, new Error('Room does not exist'));
+				handleError(
+					socket,
+					new Error('Room does not exist'),
+					'/user/room'
+				);
 				return;
 			}
 
@@ -143,38 +130,57 @@ const startSocketServer = (server: http.Server): Server => {
 			if (activeUsers[_id].room !== null) {
 				//if already in the room
 				if (activeUsers[_id].room === roomId) {
-					console.log('User rejoined the room');
+					console.log('User rejoined the room ' + _id);
 					socket.join(roomId);
 					if (roomTimer) clearTimeout(roomTimer);
 					activeUsers[_id].activeInRoom = true;
-					io.to(roomId).emit(
-						'room-joined',
-						`${username} reconnected`
-					);
+
+					io.to(roomId).emit('room-joined', {
+						msgFromServer: `${username} reconnected`,
+						players: activeRooms[roomId],
+					});
 				} else {
 					handleError(
 						socket,
 						new Error(
 							`Already in a room, wait 30s or first leave the room ${activeUsers[_id].room}`
-						)
+						),
+						'/user/room'
 					);
 				}
 				return;
 			}
 
 			if (activeRooms[roomId].length >= 2) {
-				handleError(socket, new Error('Room is full'));
+				handleError(socket, new Error('Room is full'), '/user/room');
 				return;
 			}
 			socket.join(roomId);
-			activeRooms[roomId].push(_id);
+
+			let player: Player;
+
+			if (activeRooms[roomId].length == 0) {
+				player = {
+					playerId: _id,
+					playerColor: 'white',
+					playerName: username,
+				};
+			} else {
+				player = {
+					playerId: _id,
+					playerColor: 'black',
+					playerName: username,
+				};
+			}
+			activeRooms[roomId].push(player);
+			//activeRooms[roomId].map((player: Player) => console.log(player));
 			activeUsers[_id].room = roomId;
 			activeUsers[_id].activeInRoom = true;
 
-			io.to(roomId).emit(
-				'room-joined',
-				`${username} joined the room ${roomId}`
-			); // Emit room information to all users in the room
+			io.to(roomId).emit('room-joined', {
+				msgFromServer: `${username} joined the room ${roomId}`,
+				players: activeRooms[roomId],
+			}); // Emit room information to all users in the room
 		});
 
 		socket.on('make-move', ({ move, roomId }) => {
@@ -259,16 +265,10 @@ function removeUserFromRoom(
 	activeRooms: ActiveRooms,
 	activeConnections: ActiveConnections
 ) {
-	console.log(_id, user, socket.connected);
-	console.log(activeUsers);
-	console.log(activeRooms);
-	console.log(Object.keys(activeConnections));
-
-	console.log('inside roomTimer');
 	const roomId = activeUsers[_id].room;
 	if (roomId) {
 		activeRooms[roomId] = activeRooms[roomId].filter(
-			(userId: string) => userId !== _id
+			(player: Player) => player.playerId !== _id
 		);
 
 		socket.leave(roomId);
@@ -281,9 +281,11 @@ function removeUserFromRoom(
 			`You won by ${user.username}'s disconnection 🎉`
 		);
 
-		const oppositeUserId = activeRooms[roomId].find(
-			(userId: string) => userId != _id
+		const oppositePlayer = activeRooms[roomId].find(
+			(player: Player) => player.playerId != _id
 		);
+
+		const oppositeUserId = oppositePlayer?.playerId;
 
 		if (oppositeUserId) {
 			const oppositeUserSocket = activeConnections[oppositeUserId];
@@ -303,7 +305,6 @@ function removeUserFromActiveConnections(
 	activeConnections: ActiveConnections
 ) {
 	if (activeUsers[_id] && activeUsers[_id].disconnected) {
-		console.log('inside connectionTimer');
 		if (activeConnections[_id]) {
 			activeConnections[_id].disconnect(true);
 			delete activeConnections[_id];
