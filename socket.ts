@@ -2,27 +2,28 @@ import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import http from 'http';
 
+interface User {
+	username: string;
+	room: string | null;
+	disconnected: boolean;
+	isFirstConnection: boolean;
+	activeInRoom: boolean;
+}
 interface ActiveUsers {
-	[userId: string]: {
-		username: string;
-		room: string | null;
-		disconnected: boolean;
-		isFirstConnection: boolean;
-		activeInRoom: boolean;
-	};
+	[userId: string]: User;
 }
 
 interface ActiveRooms {
 	[roomId: string]: string[];
 }
 
-interface activeConnections {
+interface ActiveConnections {
 	[userId: string]: Socket;
 }
 
 const activeUsers: ActiveUsers = {}; // Object to store active user state
 const activeRooms: ActiveRooms = {};
-export const activeConnections: activeConnections = {};
+export const activeConnections: ActiveConnections = {};
 
 const startSocketServer = (server: http.Server): Server => {
 	let connectionTimer: NodeJS.Timeout;
@@ -181,6 +182,26 @@ const startSocketServer = (server: http.Server): Server => {
 			io.to(roomId).emit('player-move', move);
 		});
 
+		socket.on('resign', () => {
+			console.log(`User ${_id} resigned`);
+			const user = activeUsers[_id];
+			if (
+				activeUsers[_id] &&
+				activeUsers[_id].room &&
+				activeUsers[_id].activeInRoom
+			) {
+				removeUserFromRoom(
+					_id,
+					user,
+					socket,
+					io,
+					activeUsers,
+					activeRooms,
+					activeConnections
+				);
+			}
+		});
+
 		socket.on('disconnect', () => {
 			console.log('User lost connection: ' + _id);
 			const user = activeUsers[_id];
@@ -192,6 +213,7 @@ const startSocketServer = (server: http.Server): Server => {
 							'player-reconnecting',
 							`${user.username} reconnecting...`
 						);
+						console.log('Player reconnecting... ' + user.username);
 					}
 				}
 				user.disconnected = true;
@@ -203,56 +225,22 @@ const startSocketServer = (server: http.Server): Server => {
 						activeUsers[_id].room &&
 						!activeUsers[_id].activeInRoom
 					) {
-						console.log('inside roomTimer');
-						const roomId = activeUsers[_id].room;
-						if (roomId) {
-							activeRooms[roomId] = activeRooms[roomId].filter(
-								(userId: string) => userId !== _id
-							);
-
-							socket.leave(roomId);
-							activeUsers[_id].room = null;
-							console.log(`User: ${_id} left room: ${user.room}`);
-							console.log('User disconnected: ' + _id);
-
-							io.to(roomId).emit(
-								'player-disconnect',
-								`You won by ${user.username}'s disconnection`
-							);
-
-							const oppositeUserId = activeRooms[roomId].find(
-								(userId: string) => userId != _id
-							);
-
-							if (oppositeUserId) {
-								const oppositeUserSocket =
-									activeConnections[oppositeUserId];
-								oppositeUserSocket.leave(roomId);
-								activeUsers[oppositeUserId].room = null;
-								console.log(
-									`User: ${oppositeUserId} left room: ${user.room}`
-								);
-								console.log(
-									`User disconnected: ${oppositeUserId}`
-								);
-							}
-
-							delete activeRooms[roomId];
-							console.log('Room deleted: ' + roomId + '1');
-						}
+						removeUserFromRoom(
+							_id,
+							user,
+							socket,
+							io,
+							activeUsers,
+							activeRooms,
+							activeConnections
+						);
 					}
-				}, 5000);
+				}, 10000); //10s
 
+				// Set a timer to automatically remove the user form activeUsers and activeConnection.
 				connectionTimer = setTimeout(() => {
-					if (activeUsers[_id] && activeUsers[_id].disconnected) {
-						console.log('inside connectionTimer');
-						if (activeConnections[_id]) {
-							activeConnections[_id].disconnect(true);
-							delete activeConnections[_id];
-						}
-						delete activeUsers[_id];
-					}
-				}, 6000); // 20 seconds timeout
+					removeUserFromActiveConnections(_id, activeConnections);
+				}, 10100); // 10.1 seconds timeout
 			}
 		});
 	});
@@ -261,3 +249,65 @@ const startSocketServer = (server: http.Server): Server => {
 };
 
 export default startSocketServer;
+
+function removeUserFromRoom(
+	_id: string,
+	user: User,
+	socket: Socket,
+	io: Server,
+	activeUsers: ActiveUsers,
+	activeRooms: ActiveRooms,
+	activeConnections: ActiveConnections
+) {
+	console.log(_id, user, socket.connected);
+	console.log(activeUsers);
+	console.log(activeRooms);
+	console.log(Object.keys(activeConnections));
+
+	console.log('inside roomTimer');
+	const roomId = activeUsers[_id].room;
+	if (roomId) {
+		activeRooms[roomId] = activeRooms[roomId].filter(
+			(userId: string) => userId !== _id
+		);
+
+		socket.leave(roomId);
+		activeUsers[_id].room = null;
+		console.log(`User: ${_id} left room: ${user.room}`);
+		console.log('User disconnected: ' + _id);
+
+		io.to(roomId).emit(
+			'player-disconnect',
+			`You won by ${user.username}'s disconnection 🎉`
+		);
+
+		const oppositeUserId = activeRooms[roomId].find(
+			(userId: string) => userId != _id
+		);
+
+		if (oppositeUserId) {
+			const oppositeUserSocket = activeConnections[oppositeUserId];
+			oppositeUserSocket.leave(roomId);
+			activeUsers[oppositeUserId].room = null;
+			console.log(`User: ${oppositeUserId} left room: ${user.room}`);
+			console.log(`User disconnected: ${oppositeUserId}`);
+		}
+
+		delete activeRooms[roomId];
+		console.log('Room deleted: ' + roomId + ':1');
+	}
+}
+
+function removeUserFromActiveConnections(
+	_id: string,
+	activeConnections: ActiveConnections
+) {
+	if (activeUsers[_id] && activeUsers[_id].disconnected) {
+		console.log('inside connectionTimer');
+		if (activeConnections[_id]) {
+			activeConnections[_id].disconnect(true);
+			delete activeConnections[_id];
+		}
+		delete activeUsers[_id];
+	}
+}
