@@ -19,12 +19,14 @@ interface ActiveUsers {
 	[userId: string]: User;
 }
 
+interface RoomState {
+	board: string;
+	moves: object[];
+	players: Player[];
+}
+
 interface ActiveRooms {
-	[roomId: string]: {
-		playerId: string;
-		playerName: string;
-		playerColor: string;
-	}[];
+	[roomId: string]: RoomState;
 }
 
 interface ActiveConnections {
@@ -111,7 +113,7 @@ const startSocketServer = (server: http.Server): Server => {
 			}
 
 			console.log('Room created: ' + roomId);
-			activeRooms[roomId] = [];
+			activeRooms[roomId] = { board: '', moves: [], players: [] };
 			socket.emit('room-created', roomId);
 		});
 
@@ -135,9 +137,10 @@ const startSocketServer = (server: http.Server): Server => {
 					if (roomTimer) clearTimeout(roomTimer);
 					activeUsers[_id].activeInRoom = true;
 
+					console.log('Sending Fen: ' + activeRooms[roomId].board);
 					io.to(roomId).emit('room-joined', {
 						msgFromServer: `${username} reconnected`,
-						players: activeRooms[roomId],
+						roomState: activeRooms[roomId],
 					});
 				} else {
 					handleError(
@@ -151,7 +154,7 @@ const startSocketServer = (server: http.Server): Server => {
 				return;
 			}
 
-			if (activeRooms[roomId].length >= 2) {
+			if (activeRooms[roomId].players.length >= 2) {
 				handleError(socket, new Error('Room is full'), '/user/room');
 				return;
 			}
@@ -159,7 +162,7 @@ const startSocketServer = (server: http.Server): Server => {
 
 			let player: Player;
 
-			if (activeRooms[roomId].length == 0) {
+			if (activeRooms[roomId].players.length == 0) {
 				player = {
 					playerId: _id,
 					playerColor: 'white',
@@ -172,20 +175,36 @@ const startSocketServer = (server: http.Server): Server => {
 					playerName: username,
 				};
 			}
-			activeRooms[roomId].push(player);
+			activeRooms[roomId].players.push(player);
 			//activeRooms[roomId].map((player: Player) => console.log(player));
 			activeUsers[_id].room = roomId;
 			activeUsers[_id].activeInRoom = true;
 
 			io.to(roomId).emit('room-joined', {
 				msgFromServer: `${username} joined the room ${roomId}`,
-				players: activeRooms[roomId],
+				roomState: activeRooms[roomId],
 			}); // Emit room information to all users in the room
 		});
 
-		socket.on('make-move', ({ move, roomId }) => {
-			console.log('Player move: ' + move);
-			io.to(roomId).emit('player-move', move);
+		socket.on('make-move', ({ move, fen, roomId }) => {
+			const { from, to, color } = move;
+			console.log('Player move: ' + from + ' ' + to + ' ' + color);
+			console.log('Fen: ' + fen);
+			console.log('RoomId: ' + roomId);
+			if (activeRooms[roomId]) {
+				activeRooms[roomId].moves.push(move);
+				activeRooms[roomId].board = fen;
+				console.log('Room Board: ' + activeRooms[roomId].board);
+			}
+			socket.to(roomId).emit('player-move', { move, username });
+		});
+
+		socket.on('reset-board', (fen: string, roomId: string) => {
+			if (activeRooms[roomId]) {
+				activeRooms[roomId].board = fen;
+			} else {
+				console.log('Room Does not exist');
+			}
 		});
 
 		socket.on('resign', () => {
@@ -267,7 +286,7 @@ function removeUserFromRoom(
 ) {
 	const roomId = activeUsers[_id].room;
 	if (roomId) {
-		activeRooms[roomId] = activeRooms[roomId].filter(
+		activeRooms[roomId].players = activeRooms[roomId].players.filter(
 			(player: Player) => player.playerId !== _id
 		);
 
@@ -281,7 +300,7 @@ function removeUserFromRoom(
 			`You won by ${user.username}'s disconnection 🎉`
 		);
 
-		const oppositePlayer = activeRooms[roomId].find(
+		const oppositePlayer = activeRooms[roomId].players.find(
 			(player: Player) => player.playerId != _id
 		);
 
