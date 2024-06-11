@@ -113,7 +113,11 @@ const startSocketServer = (server: http.Server): Server => {
 			}
 
 			console.log('Room created: ' + roomId);
-			activeRooms[roomId] = { board: '', moves: [], players: [] };
+			activeRooms[roomId] = {
+				board: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+				moves: [],
+				players: [],
+			};
 			socket.emit('room-created', roomId);
 		});
 
@@ -199,13 +203,24 @@ const startSocketServer = (server: http.Server): Server => {
 			socket.to(roomId).emit('player-move', { move, username });
 		});
 
-		socket.on('reset-board', (fen: string, roomId: string) => {
-			if (activeRooms[roomId]) {
-				activeRooms[roomId].board = fen;
-			} else {
-				console.log('Room Does not exist');
+		// socket.on('reset-board', (fen: string, roomId: string) => {
+		// 	if (activeRooms[roomId]) {
+		// 		activeRooms[roomId].board = fen;
+		// 	} else {
+		// 		console.log('Room Does not exist');
+		// 	}
+		// });
+		socket.on(
+			'game-over',
+			({ roomId, result }: { roomId: string; result: string }) => {
+				if (activeRooms[roomId]) {
+					console.log(`Game over: ${result}`);
+				}
+				socket.leave(roomId);
+				delete activeRooms[roomId];
+				removeUserFromActiveConnections(_id, activeConnections);
 			}
-		});
+		);
 
 		socket.on('resign', () => {
 			console.log(`User ${_id} resigned`);
@@ -217,7 +232,6 @@ const startSocketServer = (server: http.Server): Server => {
 			) {
 				removeUserFromRoom(
 					_id,
-					user,
 					socket,
 					io,
 					activeUsers,
@@ -252,7 +266,6 @@ const startSocketServer = (server: http.Server): Server => {
 					) {
 						removeUserFromRoom(
 							_id,
-							user,
 							socket,
 							io,
 							activeUsers,
@@ -277,7 +290,6 @@ export default startSocketServer;
 
 function removeUserFromRoom(
 	_id: string,
-	user: User,
 	socket: Socket,
 	io: Server,
 	activeUsers: ActiveUsers,
@@ -285,7 +297,8 @@ function removeUserFromRoom(
 	activeConnections: ActiveConnections
 ) {
 	const roomId = activeUsers[_id].room;
-	if (roomId) {
+	const user = activeUsers[_id];
+	if (roomId && activeRooms[roomId]) {
 		activeRooms[roomId].players = activeRooms[roomId].players.filter(
 			(player: Player) => player.playerId !== _id
 		);
