@@ -19,10 +19,17 @@ interface ActiveUsers {
 	[userId: string]: User;
 }
 
+interface Message {
+	color: string;
+	message: string;
+	id: string;
+}
+
 interface RoomState {
 	board: string;
 	moves: object[];
 	players: Player[];
+	messages: Message[];
 }
 
 interface ActiveRooms {
@@ -117,6 +124,7 @@ const startSocketServer = (server: http.Server): Server => {
 				board: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
 				moves: [],
 				players: [],
+				messages: [],
 			};
 			socket.emit('room-created', roomId);
 		});
@@ -202,6 +210,17 @@ const startSocketServer = (server: http.Server): Server => {
 			}
 			socket.to(roomId).emit('player-move', { move, username });
 		});
+
+		socket.on(
+			'message',
+			({ message, roomId }: { message: Message; roomId: string }) => {
+				if (activeRooms[roomId]) {
+					const room = activeRooms[roomId];
+					room.messages.push(message);
+					io.to(roomId).emit('message', room.messages);
+				}
+			}
+		);
 
 		// socket.on('reset-board', (fen: string, roomId: string) => {
 		// 	if (activeRooms[roomId]) {
