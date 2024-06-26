@@ -43,6 +43,9 @@ export const signin = async (req: Request, res: Response) => {
 					success: true,
 					username: foundUser.username,
 					token,
+					wins: foundUser.wins,
+					losses: foundUser.losses,
+					draws: foundUser.draws,
 				});
 			} else {
 				return res.status(403).json({
@@ -92,6 +95,9 @@ export const signup = async (req: Request, res: Response) => {
 		const user = new User<IUser>({
 			username,
 			password,
+			wins: 0,
+			losses: 0,
+			draws: 0,
 		});
 		const newUser = await user.save();
 		return res.status(200).json({

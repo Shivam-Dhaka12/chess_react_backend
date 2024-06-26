@@ -3,8 +3,11 @@ import bcrypt from 'bcrypt';
 
 export interface IUser {
 	username: string;
-	email?: string;
+	wins: number;
+	losses: number;
+	draws: number;
 	password: string;
+	email?: string;
 	date?: Date;
 }
 
@@ -25,6 +28,18 @@ const userSchema = new mongoose.Schema<IUser>({
 	date: {
 		type: Date,
 		default: Date.now,
+	},
+	wins: {
+		type: Number,
+		default: 0,
+	},
+	losses: {
+		type: Number,
+		default: 0,
+	},
+	draws: {
+		type: Number,
+		default: 0,
 	},
 });
 

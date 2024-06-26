@@ -1,6 +1,7 @@
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import http from 'http';
+import { User } from './src/models/userModel';
 
 interface User {
 	username: string;
@@ -121,7 +122,9 @@ const startSocketServer = (server: http.Server): Server => {
 
 			console.log('Room created: ' + roomId);
 			activeRooms[roomId] = {
-				board: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+				board:
+					// '4k3/3P4/8/8/8/4K3/8/8 w - - 0 1' ||
+					'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
 				moves: [],
 				players: [],
 				messages: [],
@@ -231,13 +234,50 @@ const startSocketServer = (server: http.Server): Server => {
 		// });
 		socket.on(
 			'game-over',
-			({ roomId, result }: { roomId: string; result: string }) => {
+			async ({ roomId, result }: { roomId: string; result: string }) => {
 				if (activeRooms[roomId]) {
 					console.log(`Game over: ${result}`);
+
+					socket.leave(roomId);
+					const whiteId = activeRooms[roomId].players.find(
+						(player) => player.playerColor === 'white'
+					)?.playerId;
+					const blackId = activeRooms[roomId].players.find(
+						(player) => player.playerColor === 'black'
+					)?.playerId;
+					delete activeRooms[roomId];
+					removeUserFromActiveConnections(
+						whiteId || _id,
+						activeConnections
+					);
+					removeUserFromActiveConnections(
+						blackId || _id,
+						activeConnections
+					);
+
+					if (result === '0') {
+						await User.findByIdAndUpdate(whiteId, {
+							$inc: { wins: 1 },
+						});
+						await User.findByIdAndUpdate(blackId, {
+							$inc: { losses: 1 },
+						});
+					} else if (result === '1') {
+						await User.findByIdAndUpdate(blackId, {
+							$inc: { wins: 1 },
+						});
+						await User.findByIdAndUpdate(whiteId, {
+							$inc: { losses: 1 },
+						});
+					} else if (result === '2') {
+						await User.findByIdAndUpdate(blackId, {
+							$inc: { draws: 1 },
+						});
+						await User.findByIdAndUpdate(whiteId, {
+							$inc: { draws: 1 },
+						});
+					}
 				}
-				socket.leave(roomId);
-				delete activeRooms[roomId];
-				removeUserFromActiveConnections(_id, activeConnections);
 			}
 		);
 
