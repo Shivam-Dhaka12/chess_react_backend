@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getErrorMessage } from '../utils/errors.util';
-import { IUser, User } from '../models/userModel';
+import { User } from '../models/userModel';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import serverConfig from '../config/serverConfig';
@@ -92,13 +92,7 @@ export const signup = async (req: Request, res: Response) => {
 		}
 
 		//REGISTER AND SAVE THE USER
-		const user = new User<IUser>({
-			username,
-			password,
-			wins: 0,
-			losses: 0,
-			draws: 0,
-		});
+		const user = new User();
 		const newUser = await user.save();
 		return res.status(200).json({
 			message: 'User registration successfully done!!',

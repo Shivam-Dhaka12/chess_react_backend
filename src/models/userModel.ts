@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 
-export interface IUser {
+export interface IUser extends mongoose.Document {
 	username: string;
 	wins: number;
 	losses: number;
