@@ -8,6 +8,13 @@ export const protectedController = (
 ) => {
 	const token: string = req.headers.token as string;
 	if (token) {
+		if (token.startsWith('GUEST_')) {
+			req.body.decoded = {
+				username: 'Guest',
+				_id: 'GUEST' + Date.now().toString(16),
+			};
+			next();
+		}
 		try {
 			const decode = jwt.verify(token, process.env.JWT_SECRET as string);
 			req.body.decoded = decode;

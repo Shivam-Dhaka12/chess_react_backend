@@ -106,6 +106,24 @@ export const signup = async (req: Request, res: Response) => {
 	}
 };
 
+export const guestSignin = async (req: Request, res: Response) => {
+	try {
+		const guestToken = generateGuestToken();
+		console.log('Guest token: ', guestToken);
+
+		return res.status(200).json({
+			message: 'Logged in as guest user.',
+			success: true,
+			token: guestToken,
+		});
+	} catch (error) {
+		res.status(204).json({
+			success: false,
+			message: 'Guest login failed, try later.',
+		});
+	}
+};
+
 export const logout = async (req: Request, res: Response) => {
 	const userId = req.body.decoded._id;
 	// Find the Socket.io connection associated with the user's session
@@ -128,3 +146,6 @@ export const logout = async (req: Request, res: Response) => {
 		});
 	}
 };
+function generateGuestToken() {
+	return 'GUEST_' + Math.random().toString(16) + Date.now().toString(16);
+}

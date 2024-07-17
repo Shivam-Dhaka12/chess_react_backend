@@ -59,6 +59,15 @@ const startSocketServer = (server: http.Server): Server => {
 	// auth middleware
 	io.use((socket: Socket, next) => {
 		const token = socket.handshake.auth.token;
+
+		if (token.startsWith('GUEST_')) {
+			// @ts-ignore
+			socket.decoded = {
+				username: 'Guest',
+				_id: 'GUEST' + Date.now().toString(16),
+			};
+			next();
+		}
 		jwt.verify(
 			token,
 			process.env.JWT_SECRET as string,
@@ -285,27 +294,32 @@ const startSocketServer = (server: http.Server): Server => {
 							activeConnections
 						);
 
-						if (result === '0') {
-							await User.findByIdAndUpdate(whiteId, {
-								$inc: { wins: 1 },
-							});
-							await User.findByIdAndUpdate(blackId, {
-								$inc: { losses: 1 },
-							});
-						} else if (result === '1') {
-							await User.findByIdAndUpdate(blackId, {
-								$inc: { wins: 1 },
-							});
-							await User.findByIdAndUpdate(whiteId, {
-								$inc: { losses: 1 },
-							});
-						} else if (result === '2') {
-							await User.findByIdAndUpdate(blackId, {
-								$inc: { draws: 1 },
-							});
-							await User.findByIdAndUpdate(whiteId, {
-								$inc: { draws: 1 },
-							});
+						if (
+							!username.startsWith('Guest') &&
+							!username.equals('Guest')
+						) {
+							if (result === '0') {
+								await User.findByIdAndUpdate(whiteId, {
+									$inc: { wins: 1 },
+								});
+								await User.findByIdAndUpdate(blackId, {
+									$inc: { losses: 1 },
+								});
+							} else if (result === '1') {
+								await User.findByIdAndUpdate(blackId, {
+									$inc: { wins: 1 },
+								});
+								await User.findByIdAndUpdate(whiteId, {
+									$inc: { losses: 1 },
+								});
+							} else if (result === '2') {
+								await User.findByIdAndUpdate(blackId, {
+									$inc: { draws: 1 },
+								});
+								await User.findByIdAndUpdate(whiteId, {
+									$inc: { draws: 1 },
+								});
+							}
 						}
 					}
 				}
