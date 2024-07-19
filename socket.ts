@@ -43,7 +43,7 @@ interface ActiveConnections {
 
 const activeUsers: ActiveUsers = {}; // Object to store active user state
 const activeRooms: ActiveRooms = {};
-export const activeConnections: ActiveConnections = {};
+const activeConnections: ActiveConnections = {};
 
 const startSocketServer = (server: http.Server): Server => {
 	let connectionTimer: NodeJS.Timeout;
@@ -63,10 +63,12 @@ const startSocketServer = (server: http.Server): Server => {
 		if (token.startsWith('GUEST_')) {
 			// @ts-ignore
 			socket.decoded = {
-				username: 'Guest',
-				_id: 'GUEST' + Date.now().toString(16),
+				username: token,
+				_id: token,
 			};
+			console.log('Guest detected and authenticated');
 			next();
+			return;
 		}
 		jwt.verify(
 			token,
@@ -295,8 +297,8 @@ const startSocketServer = (server: http.Server): Server => {
 						);
 
 						if (
-							!username.startsWith('Guest') &&
-							!username.equals('Guest')
+							!username.startsWith('GUEST_') &&
+							!username.equals('GUEST_')
 						) {
 							if (result === '0') {
 								await User.findByIdAndUpdate(whiteId, {
@@ -430,7 +432,7 @@ function removeUserFromRoom(
 
 		if (oppositeUserId) {
 			const oppositeUserSocket = activeConnections[oppositeUserId];
-			oppositeUserSocket.leave(roomId);
+			oppositeUserSocket?.leave(roomId);
 			activeUsers[oppositeUserId].room = null;
 			console.log(`User: ${oppositeUserId} left room: ${user.room}`);
 			console.log(`User disconnected: ${oppositeUserId}`);
@@ -453,3 +455,5 @@ function removeUserFromActiveConnections(
 		delete activeUsers[_id];
 	}
 }
+
+export { activeConnections };

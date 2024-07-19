@@ -10,10 +10,11 @@ export const protectedController = (
 	if (token) {
 		if (token.startsWith('GUEST_')) {
 			req.body.decoded = {
-				username: 'Guest',
-				_id: 'GUEST' + Date.now().toString(16),
+				username: token,
+				_id: token,
 			};
 			next();
+			return;
 		}
 		try {
 			const decode = jwt.verify(token, process.env.JWT_SECRET as string);

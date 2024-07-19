@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import serverConfig from '../config/serverConfig';
 import { activeConnections } from '../../socket';
+import { token } from 'morgan';
 
 const { JWT_SECRET } = serverConfig;
 
@@ -112,9 +113,13 @@ export const guestSignin = async (req: Request, res: Response) => {
 		console.log('Guest token: ', guestToken);
 
 		return res.status(200).json({
-			message: 'Logged in as guest user.',
+			message: `Logged in successfully as a guest`,
 			success: true,
+			username: guestToken,
 			token: guestToken,
+			wins: 0,
+			losses: 0,
+			draws: 0,
 		});
 	} catch (error) {
 		res.status(204).json({
@@ -126,11 +131,11 @@ export const guestSignin = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
 	const userId = req.body.decoded._id;
+	console.log('UserId', userId);
 	// Find the Socket.io connection associated with the user's session
 	const socket = activeConnections[userId];
 	if (socket) {
 		socket.disconnect(true);
-		delete activeConnections[userId];
 		console.log(
 			`User ${userId} logged out and Socket.io connection closed`
 		);
@@ -138,6 +143,7 @@ export const logout = async (req: Request, res: Response) => {
 			success: true,
 			message: 'User logged out successfully',
 		});
+		delete activeConnections[userId];
 	} else {
 		console.log(`User ${userId} not found or already disconnected`);
 		res.status(204).json({
