@@ -26,12 +26,12 @@ Welcome to the Chess, a two-player online chess platform built with React.js, Ty
 
 1. **Clone the Repository:**
     ```bash
-    git clone https://github.com/your-username/chess-online-game.git
+    git clone https://github.com/Shivam-Dhaka12/chess_react_backend.git
     ```
 
 2. **Install Dependencies:**
     ```bash
-    cd chess-online-game
+    cd chess_react_backend
     npm install
     ```
 
