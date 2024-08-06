@@ -59,11 +59,12 @@ const startSocketServer = (server: http.Server): Server => {
 	// auth middleware
 	io.use((socket: Socket, next) => {
 		const token = socket.handshake.auth.token;
+		const username = token.split('-')[1].split('_').map((x: string) => x.charAt(0).toUpperCase() + x.slice(1)).join(' ');;
 
-		if (token.startsWith('GUEST_')) {
+		if (token.startsWith('GUEST')) {
 			// @ts-ignore
 			socket.decoded = {
-				username: token,
+				username,
 				_id: token,
 			};
 			console.log('Guest detected and authenticated');
@@ -297,8 +298,8 @@ const startSocketServer = (server: http.Server): Server => {
 						);
 
 						if (
-							!username.startsWith('GUEST_') &&
-							!username.equals('GUEST_')
+							!username.startsWith('GUEST') &&
+							!username.equals('GUEST')
 						) {
 							if (result === '0') {
 								await User.findByIdAndUpdate(whiteId, {

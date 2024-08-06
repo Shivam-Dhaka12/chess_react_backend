@@ -8,7 +8,7 @@ export const protectedController = (
 ) => {
 	const token: string = req.headers.token as string;
 	if (token) {
-		if (token.startsWith('GUEST_')) {
+		if (token.startsWith('GUEST')) {
 			req.body.decoded = {
 				username: token,
 				_id: token,

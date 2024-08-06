@@ -6,6 +6,10 @@ import jwt from 'jsonwebtoken';
 import serverConfig from '../config/serverConfig';
 import { activeConnections } from '../../socket';
 import { token } from 'morgan';
+const { uniqueNamesGenerator, adjectives, colors, animals } = require('unique-names-generator');
+
+
+
 
 const { JWT_SECRET } = serverConfig;
 
@@ -26,6 +30,7 @@ export const signin = async (req: Request, res: Response) => {
 		const foundUser = await User.findOne({
 			username,
 		});
+
 		if (foundUser) {
 			const isMatch = bcrypt.compareSync(password, foundUser.password);
 
@@ -93,13 +98,17 @@ export const signup = async (req: Request, res: Response) => {
 		}
 
 		//REGISTER AND SAVE THE USER
-		const user = new User();
+		const user = new User({
+			username,
+			password,
+		});
 		const newUser = await user.save();
 		return res.status(200).json({
 			message: 'User registration successfully done!!',
 			success: true,
 		});
 	} catch (error) {
+		console.log(error);
 		return res.status(500).json({
 			message: getErrorMessage(error),
 			success: false,
@@ -109,13 +118,13 @@ export const signup = async (req: Request, res: Response) => {
 
 export const guestSignin = async (req: Request, res: Response) => {
 	try {
-		const guestToken = generateGuestToken();
+		const [guestToken, guestName] = generateGuestToken();
 		console.log('Guest token: ', guestToken);
 
 		return res.status(200).json({
 			message: `Logged in successfully as a guest`,
 			success: true,
-			username: guestToken,
+			username: guestName,
 			token: guestToken,
 			wins: 0,
 			losses: 0,
@@ -153,5 +162,14 @@ export const logout = async (req: Request, res: Response) => {
 	}
 };
 function generateGuestToken() {
-	return 'GUEST_' + Math.random().toString(16) + Date.now().toString(16);
+	const randomName = uniqueNamesGenerator({ dictionaries: [adjectives, colors, animals] }); // big_red_donkey
+
+	const shortName = uniqueNamesGenerator({
+	dictionaries: [adjectives, colors, animals], 
+	length: 3
+	});
+
+	const guestName = shortName.split('_').map((x: string) => x.charAt(0).toUpperCase() + x.slice(1)).join(' ');
+
+	return ['GUEST' + '-' + shortName + '-'  + Math.random().toString(16) + Date.now().toString(16), guestName];
 }
