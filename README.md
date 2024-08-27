@@ -5,6 +5,11 @@ Welcome to the Chess, a two-player online chess platform built with React.js, Ty
 ### Live Demo: https://chess-shivamdhaka.vercel.app/
 #### Visit: [Chess-React-Frontend](https://github.com/Shivam-Dhaka12/chess-frontend-bishwah) for the frontend repo of this project.
 
+![Home Page](https://github.com/user-attachments/assets/cdc7c292-d351-4375-89a9-ec9e85f17958)
+![Game Page](https://github.com/user-attachments/assets/4ad65587-1072-42f5-9580-167e7fa51f5b)
+
+
+
 
 ## Features
 
