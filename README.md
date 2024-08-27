@@ -2,8 +2,8 @@
 
 Welcome to the Chess, a two-player online chess platform built with React.js, TypeScript, and Tailwind CSS.
 
-
-### Visit: [Chess-React-Frontend](https://github.com/Shivam-Dhaka12/chess-frontend-bishwah) for the frontend repo of this project.
+### Live Demo: https://chess-shivamdhaka.vercel.app/
+#### Visit: [Chess-React-Frontend](https://github.com/Shivam-Dhaka12/chess-frontend-bishwah) for the frontend repo of this project.
 
 
 ## Features
